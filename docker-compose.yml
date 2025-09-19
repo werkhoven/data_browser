@@ -1,0 +1,74 @@
+version: "3.8"
+
+services:
+  localstack:
+    container_name: localstack
+    image: localstack/localstack:latest
+    ports:
+      - "4566:4566" # LocalStack Gateway
+      - "4510-4559:4510-4559" # External services port range
+    environment:
+      - DEBUG=${DEBUG-}
+      - PERSISTENCE=${PERSISTENCE-}
+      - LAMBDA_EXECUTOR=${LAMBDA_EXECUTOR-}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - SERVICES=s3
+      - DEFAULT_REGION=us-east-1
+    volumes:
+      - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./scripts/localstack:/etc/localstack/init/ready.d"
+    env_file:
+      - .env
+
+  pipelines-api:
+    build:
+      context: .
+      dockerfile: ./apps/pipelines/Dockerfile
+    depends_on:
+      localstack:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    volumes:
+      # Mount local source code for development (optional)
+      - ./apps/pipelines/src:/app/src
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  browser:
+    build:
+      context: .
+      dockerfile: ./apps/browser/Dockerfile
+    depends_on:
+      pipelines-api:
+        condition: service_healthy
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    environment:
+      - PIPELINES_URL=${PIPELINES_URL:-http://pipelines-api:8000}
+      - GRADIO_TEMP_DIR=${GRADIO_TEMP_DIR:-/app/data}
+    volumes:
+      - ./apps/browser/src:/app/src
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
