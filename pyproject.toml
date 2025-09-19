@@ -4,11 +4,24 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["data", "browser", "pipelines", "pipelines-client"]
 
 [tool.uv.workspace]
 members = [
     "apps/browser",
-    "libs/transforms",
     "libs/data",
+    "apps/pipelines",
+    "libs/pipelines_client",
+]
+
+[tool.uv.sources]
+data = { workspace = true }
+browser = { workspace = true }
+pipelines = { workspace = true }
+pipelines-client = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
 ]
